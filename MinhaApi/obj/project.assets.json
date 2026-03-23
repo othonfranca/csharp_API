@@ -3126,11 +3126,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Windows\\Desktop\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
+      "projectUniqueName": "C:\\Projetos\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
       "projectName": "MinhaApi",
-      "projectPath": "C:\\Users\\Windows\\Desktop\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
+      "projectPath": "C:\\Projetos\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
       "packagesPath": "C:\\Users\\Windows\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Windows\\Desktop\\CSharp_API\\MinhaApi\\obj\\",
+      "outputPath": "C:\\Projetos\\CSharp_API\\MinhaApi\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Windows\\AppData\\Roaming\\NuGet\\NuGet.Config"

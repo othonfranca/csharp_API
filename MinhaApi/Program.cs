@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,45 +86,51 @@ app.MapGet("/produtos/{id}", async (AppDbContext db, int id) =>
 // Agora o GET aceita Nome (opcional), Página e Tamanho
 app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? categoriaNome, int pagina, int tamanho, AppDbContext db) =>
 {
-    // 1. Iniciamos a consulta incluindo a Categoria
-    var consulta = db.Produtos.Include(p => p.Categoria).AsQueryable();
-
-    // 2. Filtro por Nome do Produto
-    if (!string.IsNullOrEmpty(nome))
+    try 
     {
-        consulta = consulta.Where(p => p.Nome.Contains(nome));
-    }
+        // 1. Base da consulta
+        var consulta = db.Produtos.Include(p => p.Categoria).AsQueryable();
 
-    // 3. NOVO: Filtro por ID da Categoria
-    if (categoriaId.HasValue)
+        // 2. Filtros (Nome, CategoriaId, CategoriaNome)
+        if (!string.IsNullOrEmpty(nome))
+            consulta = consulta.Where(p => p.Nome.Contains(nome));
+
+        if (categoriaId.HasValue)
+            consulta = consulta.Where(p => p.CategoriaId == categoriaId);
+
+        // Ao usar o ! após p.Categoria, estamos dizendo ao C# que "confia" que Categoria não será nula aqui, porque o Include já garantiu que ela será carregada junto com os produtos.
+        if (!string.IsNullOrEmpty(categoriaNome))
+            consulta = consulta.Where(p => p.Categoria!.Nome.Contains(categoriaNome));
+
+        // 3. Contagem e Cálculos
+        var totalItens = await consulta.CountAsync();
+        
+        if (tamanho <= 0) tamanho = 10;
+        if (pagina <= 0) pagina = 1;
+
+        int totalPaginas = (int)Math.Ceiling((double)totalItens / tamanho);
+        int pular = (pagina - 1) * tamanho;
+
+        // 4. Execução da busca e Soma
+        var dados = await consulta.Skip(pular).Take(tamanho).ToListAsync();
+        var valorTotalEstoque = await consulta.SumAsync(p => (decimal?)p.Preco) ?? 0;
+
+        return Results.Ok(new {
+            TotalItensFiltrados = totalItens,
+            ValorTotalDoEstoque = valorTotalEstoque,
+            TotalDePaginas = totalPaginas,
+            PaginaAtual = pagina,
+            Produtos = dados
+        });
+    }
+    catch (Exception ex)
     {
-        consulta = consulta.Where(p => p.CategoriaId == categoriaId);
+        // Log do erro no console do VS Code para debugar
+        Console.WriteLine($"Erro na busca: {ex.Message}");
+        
+        // Retorna um erro amigável para quem chamou a API (Postman/Python)
+        return Results.Problem("Ocorreu um erro interno ao processar a busca. Verifique os logs.");
     }
-
-    // 4. NOVO: Filtro por Nome da Categoria
-    if (!string.IsNullOrEmpty(categoriaNome))
-    {
-        // Buscamos produtos onde o nome da categoria vinculada contenha o texto
-        consulta = consulta.Where(p => p.Categoria.Nome.Contains(categoriaNome));
-    }
-
-    // 5. Paginação e Contagem (Igual ao anterior)
-    var totalItens = await consulta.CountAsync();
-    
-    if (tamanho <= 0) tamanho = 10;
-    if (pagina <= 0) pagina = 1;
-
-    int totalPaginas = (int)Math.Ceiling((double)totalItens / tamanho);
-    int pular = (pagina - 1) * tamanho;
-
-    var dados = await consulta.Skip(pular).Take(tamanho).ToListAsync();
-
-    return Results.Ok(new {
-        TotalGeral = totalItens,
-        TotalDePaginas = totalPaginas,
-        PaginaAtual = pagina,
-        Dados = dados
-    });
 });
 
 app.MapPut("/produtos/{id}", async (AppDbContext db, int id, Produto produtoAlterado) =>
@@ -200,6 +205,52 @@ app.MapPost("/categorias", async (AppDbContext db, Categoria categoria) =>
 // Rota extra: Útil para você ver quais IDs já existem
 app.MapGet("/categorias", async (AppDbContext db) => 
     await db.Categorias.ToListAsync());
+
+app.MapGet("/dashboard/resumo", async (AppDbContext db) =>
+{
+    try
+    {
+        // Estatisticas gerais
+        var totalProdutos = await db.Produtos.CountAsync();
+        var valorTotal = await db.Produtos.SumAsync(p => (decimal?)p.Preco) ?? 0;
+        var mediaPreco = totalProdutos > 0 ? valorTotal/totalProdutos : 0;
+
+        // Top 5 produtos mais caros
+        var topProdutos = await db.Produtos
+            .OrderByDescending(p=>p.Preco)
+            .Take(5)
+            .Select(p => new { p.Nome, p.Preco })
+            .ToArrayAsync();
+
+        // Resumo por categoria
+        var porCategoria = await db.Categorias
+            .Select(c => new
+            {
+                Categoria = c.Nome,
+                Quantidade = c.Produtos != null ? c.Produtos.Count : 0
+            })
+            .ToListAsync();
+
+        return Results.Ok(new
+        {
+            DataRelatorio = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
+            EstoqueGeral = new
+            {
+                QuantidadeTotal = totalProdutos,
+                ValorTotalGeral = valorTotal,
+                TicketMedio = mediaPreco
+            },
+            RankingTop5 = topProdutos,
+            DistribuicaoCategoria = porCategoria
+        });
+        
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Erro no Dashboard: {ex.Message}");
+        return Results.Problem("Erro ao gerar o dashboard. Verifique os logs do servidor.");
+    }
+});
 
 app.Run();
 public class Produto 

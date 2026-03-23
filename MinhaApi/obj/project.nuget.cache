@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "goh+4QI6r9k=",
+  "dgSpecHash": "jbjOcsIC+HQ=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Windows\\Desktop\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
+  "projectFilePath": "C:\\Projetos\\CSharp_API\\MinhaApi\\MinhaApi.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Windows\\.nuget\\packages\\azure.core\\1.47.1\\azure.core.1.47.1.nupkg.sha512",
     "C:\\Users\\Windows\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",
