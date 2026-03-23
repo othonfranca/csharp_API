@@ -2,6 +2,13 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => 
+{
+    // Isso evita que o JSON tente entrar em um loop infinito 
+    // entre Produto -> Categoria -> Produto
+    options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
+
 // 1. REGISTRO DO BANCO: Avisa ao .NET para usar o SQL Server com a nossa frase de conexão
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -72,38 +79,45 @@ app.MapGet("/produtos/{id}", async (AppDbContext db, int id) =>
 });
 
 // Agora o GET aceita Nome (opcional), Página e Tamanho
-app.MapGet("/produtos/busca", async (string? nome, int pagina, int tamanho, AppDbContext db) =>
+app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? categoriaNome, int pagina, int tamanho, AppDbContext db) =>
 {
-    // 1. Criamos a base da consulta (Queryable)
-    var consulta = db.Produtos
-    .Include(p => p.Categoria)
-    .AsQueryable();
+    // 1. Iniciamos a consulta incluindo a Categoria
+    var consulta = db.Produtos.Include(p => p.Categoria).AsQueryable();
 
-    // 2. Se o usuário passou um nome, filtramos antes de tudo
+    // 2. Filtro por Nome do Produto
     if (!string.IsNullOrEmpty(nome))
     {
         consulta = consulta.Where(p => p.Nome.Contains(nome));
     }
 
-    // 3. Contamos o total baseado no filtro (importante!)
+    // 3. NOVO: Filtro por ID da Categoria
+    if (categoriaId.HasValue)
+    {
+        consulta = consulta.Where(p => p.CategoriaId == categoriaId);
+    }
+
+    // 4. NOVO: Filtro por Nome da Categoria
+    if (!string.IsNullOrEmpty(categoriaNome))
+    {
+        // Buscamos produtos onde o nome da categoria vinculada contenha o texto
+        consulta = consulta.Where(p => p.Categoria.Nome.Contains(categoriaNome));
+    }
+
+    // 5. Paginação e Contagem (Igual ao anterior)
     var totalItens = await consulta.CountAsync();
+    
+    if (tamanho <= 0) tamanho = 10;
+    if (pagina <= 0) pagina = 1;
 
-    // 4. Garantimos que página e tamanho sejam válidos
-    if (tamanho <= 0) tamanho = 10; // Evita divisão por zero ou páginas negativas
-    if(pagina <= 0) pagina = 1; // Garante que a página seja pelo menos 1
-
-    // 6. Calculamos o total de páginas (opcional, mas útil para o front-end)
     int totalPaginas = (int)Math.Ceiling((double)totalItens / tamanho);
-
-    // 7. Aplicamos a paginação sobre o resultado filtrado
     int pular = (pagina - 1) * tamanho;
+
     var dados = await consulta.Skip(pular).Take(tamanho).ToListAsync();
 
-    // 8. Retornamos um objeto com os dados e as informações de paginação
     return Results.Ok(new {
         TotalGeral = totalItens,
         TotalDePaginas = totalPaginas,
-        Pagina = pagina,
+        PaginaAtual = pagina,
         Dados = dados
     });
 });
