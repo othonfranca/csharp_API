@@ -95,6 +95,27 @@ app.MapPut("/produtos/{id}", async (int id, Produto produtoAlterado, AppDbContex
     }
 });
 
+app.MapDelete("/produtos/{id}", async (int id, AppDbContext db) =>
+{
+    try
+    {
+        var produto = await db.Produtos.FindAsync(id);
+
+        if (produto == null)
+        {
+            return Results.NotFound($"Produto com id {id} não encontrado para exclusão.");
+        }
+
+        db.Produtos.Remove(produto);
+        await db.SaveChangesAsync();
+
+        return Results.NoContent();
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem("Erro ao excluir produto: " + ex.Message);
+    }
+});
 
 app.Run();
 public class Produto 
