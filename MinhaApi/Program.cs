@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +10,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     // Isso evita que o JSON tente entrar em um loop infinito 
     // entre Produto -> Categoria -> Produto
     options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    
+    // Força 2 casas decimais em todos os decimais da API
+    options.SerializerOptions.Converters.Add(new DecimalConverter());
 });
 
 // 1. REGISTRO DO BANCO: Avisa ao .NET para usar o SQL Server com a nossa frase de conexão
@@ -176,7 +182,7 @@ app.MapDelete("/produtos/{id}", async (AppDbContext db, int id) =>
 });
 
 // Rota para cadastrar novas categorias
-app.MapPost("/categorias", async (Categoria categoria, AppDbContext db) =>
+app.MapPost("/categorias", async (AppDbContext db, Categoria categoria) =>
 {
     // Validação simples: não aceita nome vazio
     if (string.IsNullOrWhiteSpace(categoria.Nome))
@@ -214,4 +220,13 @@ public class Categoria
 
     // Um "atalho" para o Entity Framework saber que uma categoria tem muitos produtos
     public List<Produto> Produtos { get; set; } = new();
+}
+
+public class DecimalConverter : JsonConverter<decimal>
+{
+    public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetDecimal();
+    
+    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) =>
+        writer.WriteNumberValue(Math.Round(value, 2));
 }
