@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using Azure.Core;
 
 namespace MinhaApi.Middleware;
 
@@ -11,8 +10,8 @@ public class ExceptionMiddleware
 
     public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
     {
-        _next = next;
-        _logger = logger;
+        _next = next; // para seguir o fluxo normal da requisição, para não atrapalhar o funcionamento da API, para que a API continue funcionando normalmente, mesmo que dê erro em algum lugar
+        _logger = logger; //para me mandar um log do erro que aconteceu, para saber o que aconteceu e onde aconteceu, para poder corrigir depois
     }
 
     public async Task InvokeAsync(HttpContext context)
