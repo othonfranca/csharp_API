@@ -1,10 +1,17 @@
 using Microsoft.EntityFrameworkCore;
 using MinhaApi.Models; // Importa a classe Categoria do arquivo separado
 using MinhaApi.Data; // Importa o AppDbContext do arquivo separado
-using MinhaApi.Converters; // Importa o DecimalConverter do arquivo separado
+using MinhaApi.Converters;
+using MinhaApi.DTOs; // Importa o DecimalConverter do arquivo separado
 
 var builder = WebApplication.CreateBuilder(args);
 
+// CONFIGURANDO SWAGGER PARA DOCUMENTAÇÃO AUTOMÁTICA
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
+// CONFIGURAÇÕES GLOBAIS DE SERIALIZAÇÃO JSON
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => 
 {
     // Isso evita que o JSON tente entrar em um loop infinito 
@@ -20,24 +27,36 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.MapPost("/produtos", async (Produto produto, AppDbContext db) =>
+app.MapPost("/produtos", async (ProdutoCreateRequest dados, AppDbContext db) =>
 {
-    // 1. Validação: O nome não pode ser vazio e o preço deve ser maior que zero
-    if (string.IsNullOrWhiteSpace(produto.Nome) || produto.Preco <= 0 || produto.CategoriaId <= 0)
+    // 1. Validação básica (usando os dados do DTO)
+    if (string.IsNullOrWhiteSpace(dados.Nome) || dados.Preco <= 0 || dados.CategoriaId <= 0)
     {
-        return Results.BadRequest("Dados inválidos: O nome é obrigatório, o preço deve ser maior que zero e a categoria é obrigatória.");
+        return Results.BadRequest("Dados inválidos.");
     }
+
+    // 2. Transformamos o DTO na classe de Banco (Produto)
+    var novoProduto = new Produto
+    {
+        Nome = dados.Nome,
+        Preco = dados.Preco,
+        CategoriaId = dados.CategoriaId
+        // O Id e o objeto Categoria ficam nulos aqui, 
+        // o Entity Framework resolve isso ao salvar.
+    };
 
     try 
     {
-        db.Produtos.Add(produto);
+        db.Produtos.Add(novoProduto);
         await db.SaveChangesAsync();
-        return Results.Created($"/produtos/{produto.Id}", produto);
+        return Results.Created($"/produtos/{novoProduto.Id}", novoProduto);
     }
     catch (Exception ex) 
     {
-        return Results.Problem("Erro ao salvar no banco: " + ex.Message);
+        return Results.Problem("Erro ao salvar: " + ex.Message);
     }
 });
 
@@ -48,6 +67,13 @@ app.MapGet("/produtos", async (AppDbContext db) =>
         // Tenta executar a operação normal
         var lista = await db.Produtos
         .Include(p => p.Categoria)
+        .Select(p => new ProdutoResponse
+        {
+            Id = p.Id,
+            Nome = p.Nome,
+            Preco = p.Preco,
+            CategoriaNome = p.Categoria != null ? p.Categoria.Nome : "Sem Categoria"
+        })
         .ToListAsync();
         // 2. Aqui você poderia adicionar qualquer lógica extra, 
         // como um log no console:
@@ -90,7 +116,7 @@ app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? cat
     try 
     {
         // 1. Base da consulta
-        var consulta = db.Produtos.Include(p => p.Categoria).AsQueryable();
+        var consulta = db.Produtos.AsQueryable();
 
         // 2. Filtros (Nome, CategoriaId, CategoriaNome)
         if (!string.IsNullOrEmpty(nome))
@@ -113,7 +139,18 @@ app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? cat
         int pular = (pagina - 1) * tamanho;
 
         // 4. Execução da busca e Soma
-        var dados = await consulta.Skip(pular).Take(tamanho).ToListAsync();
+        var dados = await consulta
+        .Skip(pular)
+        .Take(tamanho)
+        .Select(p => new ProdutoResponse 
+            {
+                Id = p.Id,
+                Nome = p.Nome,
+                Preco = p.Preco,
+                CategoriaNome = p.Categoria != null ? p.Categoria.Nome : "Sem Categoria"
+            })
+        .ToListAsync();
+        
         var valorTotalEstoque = await consulta.SumAsync(p => (decimal?)p.Preco) ?? 0;
 
         return Results.Ok(new {
@@ -134,9 +171,9 @@ app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? cat
     }
 });
 
-app.MapPut("/produtos/{id}", async (AppDbContext db, int id, Produto produtoAlterado) =>
+app.MapPut("/produtos/{id}", async (AppDbContext db, int id, ProdutoUpdateRequest dados) =>
 {
-    if (string.IsNullOrWhiteSpace(produtoAlterado.Nome) || produtoAlterado.Preco <= 0)
+    if (dados.Preco <= 0)
     {
         return Results.BadRequest("Dados inválidos: O nome é obrigatório e o preço deve ser maior que zero.");
     }
@@ -150,9 +187,8 @@ app.MapPut("/produtos/{id}", async (AppDbContext db, int id, Produto produtoAlte
             return Results.NotFound($"Produto com id {id} não encontrado para atualização.");
         }
 
-        produtoNoBanco.Nome = produtoAlterado.Nome;
-        produtoNoBanco.Preco = produtoAlterado.Preco;
-        produtoNoBanco.CategoriaId = produtoAlterado.CategoriaId;
+        produtoNoBanco.Preco = dados.Preco;
+        produtoNoBanco.CategoriaId = dados.CategoriaId;
 
         await db.SaveChangesAsync();
 

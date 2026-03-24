@@ -4,14 +4,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using MinhaApi.Data;
 
 #nullable disable
 
 namespace MinhaApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260324125903_CriacaoInicialComSeed")]
-    partial class CriacaoInicialComSeed
+    [Migration("20260324131548_InicialRefatorado")]
+    partial class InicialRefatorado
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -23,7 +24,7 @@ namespace MinhaApi.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Categoria", b =>
+            modelBuilder.Entity("MinhaApi.Models.Categoria", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -62,7 +63,7 @@ namespace MinhaApi.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Produto", b =>
+            modelBuilder.Entity("MinhaApi.Models.Produto", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -229,9 +230,9 @@ namespace MinhaApi.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Produto", b =>
+            modelBuilder.Entity("MinhaApi.Models.Produto", b =>
                 {
-                    b.HasOne("Categoria", "Categoria")
+                    b.HasOne("MinhaApi.Models.Categoria", "Categoria")
                         .WithMany("Produtos")
                         .HasForeignKey("CategoriaId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -240,7 +241,7 @@ namespace MinhaApi.Migrations
                     b.Navigation("Categoria");
                 });
 
-            modelBuilder.Entity("Categoria", b =>
+            modelBuilder.Entity("MinhaApi.Models.Categoria", b =>
                 {
                     b.Navigation("Produtos");
                 });
