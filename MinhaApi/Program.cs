@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using MinhaApi.Models; // Importa a classe Categoria do arquivo separado
+using MinhaApi.Data; // Importa o AppDbContext do arquivo separado
+using MinhaApi.Converters; // Importa o DecimalConverter do arquivo separado
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -253,31 +254,3 @@ app.MapGet("/dashboard/resumo", async (AppDbContext db) =>
 });
 
 app.Run();
-public class Produto 
-{
-    public int Id { get; set; }
-    public string Nome { get; set; } = string.Empty;
-    public decimal Preco { get; set; }
-    // Chave Estrangeira (O ID da Categoria no SQL)
-    public int CategoriaId { get; set; }
-    // Propriedade de Navegação (Para o C# conseguir ler os dados da categoria)
-    public Categoria? Categoria { get; set; }
-}
-
-public class Categoria
-{
-    public int Id { get; set; }
-    public string Nome { get; set; } = string.Empty;
-
-    // Um "atalho" para o Entity Framework saber que uma categoria tem muitos produtos
-    public List<Produto> Produtos { get; set; } = new();
-}
-
-public class DecimalConverter : JsonConverter<decimal>
-{
-    public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        reader.GetDecimal();
-    
-    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) =>
-        writer.WriteNumberValue(Math.Round(value, 2));
-}
