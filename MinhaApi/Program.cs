@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// REGISTRO DOS VALIDADORES DO FLUENTVALIDATION (PRODUTO CREATE, PRODUTO UPDATE, CATEGORIA UPDATE)
+// REGISTRO DOS VALIDADORES DO FLUENTVALIDATION - O método AddValidatorsFromAssemblyContaining procura por todas as classes que implementam IValidator<T> no assembly especificado e as registra automaticamente no contêiner de injeção de dependência do .NET.
 builder.Services.AddValidatorsFromAssemblyContaining<ProdutoCreateValidator>();
 
 // CONFIGURAÇÕES GLOBAIS DE SERIALIZAÇÃO JSON
