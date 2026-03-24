@@ -7,7 +7,7 @@
 namespace MinhaApi.Migrations
 {
     /// <inheritdoc />
-    public partial class CriacaoInicialComSeed : Migration
+    public partial class InicialRefatorado : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

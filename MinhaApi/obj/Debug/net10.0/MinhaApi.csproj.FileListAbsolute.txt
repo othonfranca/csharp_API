@@ -316,3 +316,6 @@ C:\Projetos\CSharp_API\MinhaApi\obj\Debug\net10.0\refint\MinhaApi.dll
 C:\Projetos\CSharp_API\MinhaApi\obj\Debug\net10.0\MinhaApi.pdb
 C:\Projetos\CSharp_API\MinhaApi\obj\Debug\net10.0\MinhaApi.genruntimeconfig.cache
 C:\Projetos\CSharp_API\MinhaApi\obj\Debug\net10.0\ref\MinhaApi.dll
+C:\Projetos\CSharp_API\MinhaApi\bin\Debug\net10.0\Swashbuckle.AspNetCore.Swagger.dll
+C:\Projetos\CSharp_API\MinhaApi\bin\Debug\net10.0\Swashbuckle.AspNetCore.SwaggerGen.dll
+C:\Projetos\CSharp_API\MinhaApi\bin\Debug\net10.0\Swashbuckle.AspNetCore.SwaggerUI.dll
