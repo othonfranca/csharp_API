@@ -1,15 +1,18 @@
 using Microsoft.EntityFrameworkCore;
-using MinhaApi.Models; // Importa a classe Categoria do arquivo separado
 using MinhaApi.Data; // Importa o AppDbContext do arquivo separado
 using MinhaApi.Converters;
-using MinhaApi.DTOs; // Importa o DecimalConverter do arquivo separado
+using FluentValidation;
+using MinhaApi.Validators;
+using MinhaApi.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CONFIGURANDO SWAGGER PARA DOCUMENTAÇÃO AUTOMÁTICA
+// CONFIGURANDO SWAGGER PARA DOCUMENTAÇÃO AUTOMÁTICA E TESTE NO BROWSER SEM POSTMAN
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// REGISTRO DOS VALIDADORES DO FLUENTVALIDATION (PRODUTO CREATE, PRODUTO UPDATE, CATEGORIA UPDATE)
+builder.Services.AddValidatorsFromAssemblyContaining<ProdutoCreateValidator>();
 
 // CONFIGURAÇÕES GLOBAIS DE SERIALIZAÇÃO JSON
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => 
@@ -35,213 +38,9 @@ app.UseMiddleware<MinhaApi.Middleware.ExceptionMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.MapPost("/produtos", async (ProdutoCreateRequest dados, AppDbContext db) =>
-{
-    // 1. Validação básica (usando os dados do DTO)
-    if (string.IsNullOrWhiteSpace(dados.Nome) || dados.Preco <= 0 || dados.CategoriaId <= 0)
-    {
-        return Results.BadRequest("Dados inválidos.");
-    }
-
-    // 2. Transformamos o DTO na classe de Banco (Produto)
-    var novoProduto = new Produto
-    {
-        Nome = dados.Nome,
-        Preco = dados.Preco,
-        CategoriaId = dados.CategoriaId
-        // O Id e o objeto Categoria ficam nulos aqui, 
-        // o Entity Framework resolve isso ao salvar.
-    };
-
-    db.Produtos.Add(novoProduto);
-    await db.SaveChangesAsync();
-    return Results.Created($"/produtos/{novoProduto.Id}", novoProduto);
-
-});
-
-app.MapGet("/produtos", async (AppDbContext db) => 
-{
-
-    // Tenta executar a operação normal
-    var lista = await db.Produtos
-    .Include(p => p.Categoria)
-    .Select(p => new ProdutoResponse
-    {
-            Id = p.Id,
-            Nome = p.Nome,
-            Preco = p.Preco,
-            CategoriaNome = p.Categoria != null ? p.Categoria.Nome : "Sem Categoria"
-    })
-    .ToListAsync();
-
-    // 2. Aqui você poderia adicionar qualquer lógica extra, 
-    // como um log no console:
-    Console.WriteLine($"Alguém consultou a lista. Total de itens: {lista.Count}");
-
-    return Results.Ok(lista);
-
-});
-
-app.MapGet("/produtos/{id}", async (AppDbContext db, int id) =>
-{
-    var produto = await db.Produtos.FindAsync(id);
-    if (produto != null)
-    {
-        return Results.Ok(produto);
-    }
-    else
-   {
-        return Results.NotFound("Produto não existe no banco.");
-    }
-
-});
-
-// Agora o GET aceita Nome (opcional), Página e Tamanho
-app.MapGet("/produtos/busca", async (string? nome, int? categoriaId, string? categoriaNome, int pagina, int tamanho, AppDbContext db) =>
-{
-    // 1. Base da consulta
-    var consulta = db.Produtos.AsQueryable();
-
-    // 2. Filtros (Nome, CategoriaId, CategoriaNome)
-    if (!string.IsNullOrEmpty(nome))
-        consulta = consulta.Where(p => p.Nome.Contains(nome));
-
-    if (categoriaId.HasValue)
-        consulta = consulta.Where(p => p.CategoriaId == categoriaId);
-
-    // Ao usar o ! após p.Categoria, estamos dizendo ao C# que "confia" que Categoria não será nula aqui, porque o Include já garantiu que ela será carregada junto com os produtos.
-    if (!string.IsNullOrEmpty(categoriaNome))
-        consulta = consulta.Where(p => p.Categoria!.Nome.Contains(categoriaNome));
-
-    // 3. Contagem e Cálculos
-    var totalItens = await consulta.CountAsync();
-        
-    if (tamanho <= 0) tamanho = 10;
-    if (pagina <= 0) pagina = 1;
-
-    int totalPaginas = (int)Math.Ceiling((double)totalItens / tamanho);
-    int pular = (pagina - 1) * tamanho;
-
-    // 4. Execução da busca e Soma
-    var dados = await consulta
-    .Skip(pular)
-    .Take(tamanho)
-    .Select(p => new ProdutoResponse 
-        {
-            Id = p.Id,
-            Nome = p.Nome,
-            Preco = p.Preco,
-            CategoriaNome = p.Categoria != null ? p.Categoria.Nome : "Sem Categoria"
-        })
-    .ToListAsync();
-
-    var valorTotalEstoque = await consulta.SumAsync(p => (decimal?)p.Preco) ?? 0;
-
-    return Results.Ok(new {
-        TotalItensFiltrados = totalItens,
-        ValorTotalDoEstoque = valorTotalEstoque,
-        TotalDePaginas = totalPaginas,
-        PaginaAtual = pagina,
-        Produtos = dados
-    });
-
-});
-
-app.MapPut("/produtos/{id}", async (AppDbContext db, int id, ProdutoUpdateRequest dados) =>
-{
-    if (dados.Preco <= 0)
-    {
-        return Results.BadRequest("Dados inválidos: O nome é obrigatório e o preço deve ser maior que zero.");
-    }
-
-    var produtoNoBanco = await db.Produtos.FindAsync(id);
-
-    if (produtoNoBanco == null)
-    {
-        return Results.NotFound($"Produto com id {id} não encontrado para atualização.");
-    }
-
-    produtoNoBanco.Preco = dados.Preco;
-    produtoNoBanco.CategoriaId = dados.CategoriaId;
-
-    await db.SaveChangesAsync();
-
-    return Results.Ok(produtoNoBanco);
-
-});
-
-app.MapDelete("/produtos/{id}", async (AppDbContext db, int id) =>
-{
-    var produto = await db.Produtos.FindAsync(id);
-
-    if (produto == null)
-    {
-        return Results.NotFound($"Produto com id {id} não encontrado para exclusão.");
-    }
-
-    db.Produtos.Remove(produto);
-    await db.SaveChangesAsync();
-
-    return Results.NoContent();
-    
-});
-
-// Rota para cadastrar novas categorias
-app.MapPost("/categorias", async (AppDbContext db, Categoria categoria) =>
-{
-    // Validação simples: não aceita nome vazio
-    if (string.IsNullOrWhiteSpace(categoria.Nome))
-    {
-        return Results.BadRequest("O nome da categoria é obrigatório.");
-    }
-
-    db.Categorias.Add(categoria);
-    await db.SaveChangesAsync();
-
-    // Retorna 201 Created e o objeto que foi criado (com o ID gerado pelo banco)
-    return Results.Created($"/categorias/{categoria.Id}", categoria);
-});
-
-// Rota extra: Útil para você ver quais IDs já existem
-app.MapGet("/categorias", async (AppDbContext db) => 
-    await db.Categorias.ToListAsync());
-
-app.MapGet("/dashboard/resumo", async (AppDbContext db) =>
-{
-    // Estatisticas gerais
-    var totalProdutos = await db.Produtos.CountAsync();
-    var valorTotal = await db.Produtos.SumAsync(p => (decimal?)p.Preco) ?? 0;
-    var mediaPreco = totalProdutos > 0 ? valorTotal/totalProdutos : 0;
-
-    // Top 5 produtos mais caros
-    var topProdutos = await db.Produtos
-        .OrderByDescending(p=>p.Preco)
-        .Take(5)
-        .Select(p => new { p.Nome, p.Preco })
-        .ToArrayAsync();
-
-    // Resumo por categoria
-    var porCategoria = await db.Categorias
-        .Select(c => new
-        {
-            Categoria = c.Nome,
-            Quantidade = c.Produtos != null ? c.Produtos.Count : 0
-        })
-        .ToListAsync();
-
-    return Results.Ok(new
-    {
-        DataRelatorio = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
-        EstoqueGeral = new
-        {
-            QuantidadeTotal = totalProdutos,
-            ValorTotalGeral = valorTotal,
-            TicketMedio = mediaPreco
-        },
-        RankingTop5 = topProdutos,
-        DistribuicaoCategoria = porCategoria
-    });
-    
-});
+// REGISTRO DOS ENDPOINTS
+app.MapProdutoEndpoints();
+app.MapCategoriaEndpoints();
+app.MapDashboardEndpoints();
 
 app.Run();
