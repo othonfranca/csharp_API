@@ -10,7 +10,9 @@ public static class ProdutoEndpoints
 {
     public static void MapProdutoEndpoints(this IEndpointRouteBuilder routes)
     {
-        var group = routes.MapGroup("/produtos").WithTags("Produtos");
+        var group = routes
+            .MapGroup("/produtos")
+            .WithTags("Produtos");
 
         group.MapPost("/", async (AppDbContext db, IValidator<ProdutoCreateRequest> validator, ProdutoCreateRequest dados) =>
         {
