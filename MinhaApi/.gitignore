@@ -1,0 +1,30 @@
+## Comum do .NET (Ignora pastas de compilação)
+bin/
+obj/
+out/
+
+## User Secrets (Garante que arquivos locais de segredos fiquem fora)
+.usersecrets/
+secrets.json
+
+## Configurações de IDE (VS Code e Visual Studio)
+.vscode/
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+
+## Arquivos de Banco de Dados Locais (Se você usar SQLite ou MDF)
+*.db
+*.sdb
+*.sqlite
+*.mdf
+*.ldf
+
+## Arquivos de Log
+*.log
+
+## Pacotes NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
