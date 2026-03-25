@@ -14,7 +14,7 @@ public static class DashboardEndpoint
             // Estatisticas gerais
             var totalProdutos = await db.Produtos.CountAsync();
             var valorTotal = await db.Produtos.SumAsync(p => (decimal?)p.Preco) ?? 0;
-            var mediaPreco = totalProdutos > 0 ? valorTotal/totalProdutos : 0;
+            var mediaPreco = totalProdutos > 0 ? await db.Produtos.AverageAsync(p => p.Preco) : 0;
 
             // Top 5 produtos mais caros
             var topProdutos = await db.Produtos
@@ -28,7 +28,7 @@ public static class DashboardEndpoint
                 .Select(c => new
                 {
                     Categoria = c.Nome,
-                    Quantidade = c.Produtos != null ? c.Produtos.Count : 0
+                    Quantidade = c.Produtos.Count()
                 })
                 .ToListAsync();
 
