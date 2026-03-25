@@ -1,44 +1,81 @@
 using Microsoft.EntityFrameworkCore;
-using MinhaApi.Data; // Importa o AppDbContext do arquivo separado
+using MinhaApi.Data;
 using MinhaApi.Converters;
 using FluentValidation;
 using MinhaApi.Validators;
 using MinhaApi.Endpoints;
+using System.Text;
+using Scalar.AspNetCore; // Importante: dotnet add package Scalar.AspNetCore
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CONFIGURANDO SWAGGER PARA DOCUMENTAÇÃO AUTOMÁTICA E TESTE NO BROWSER SEM POSTMAN
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// 1. CONFIGURAÇÃO JWT
+var jwtKey = builder.Configuration["JwtSettings:Key"] 
+            ?? throw new InvalidOperationException("A chave JWT não foi configurada!");
+var key = Encoding.ASCII.GetBytes(jwtKey);
 
-// REGISTRO DOS VALIDADORES DO FLUENTVALIDATION - O método AddValidatorsFromAssemblyContaining procura por todas as classes que implementam IValidator<T> no assembly especificado e as registra automaticamente no contêiner de injeção de dependência do .NET.
+// 2. NOVO OPENAPI (.NET 10) - Substitui o AddSwaggerGen
+builder.Services.AddOpenApi(options =>
+{
+    // Adicionamos o transformador que criamos para o "Cadeado"
+    options.AddDocumentTransformer<SecurityTransformer>();
+});
+
+// 3. REGISTROS DO FLUENTVALIDATION
 builder.Services.AddValidatorsFromAssemblyContaining<ProdutoCreateValidator>();
 
-// CONFIGURAÇÕES GLOBAIS DE SERIALIZAÇÃO JSON
+// 4. CONFIGURAÇÕES JSON
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => 
 {
-    // Isso evita que o JSON tente entrar em um loop infinito 
-    // entre Produto -> Categoria -> Produto
     options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-    
-    // Força 2 casas decimais em todos os decimais da API
     options.SerializerOptions.Converters.Add(new DecimalConverter());
 });
 
-// 1. REGISTRO DO BANCO: Avisa ao .NET para usar o SQL Server com a nossa frase de conexão
+// 5. BANCO DE DADOS E SERVIÇOS
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<MinhaApi.Services.TokenService>();
+
+
+// 1. Configura como a API valida o Token (Quem é você?)
+builder.Services.AddAuthentication(options => 
+{
+    options.DefaultAuthenticateScheme = "Bearer";
+    options.DefaultChallengeScheme = "Bearer";
+})
+.AddJwtBearer(options => 
+{
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
+});
+
+// 2. Registra o serviço de regras de acesso (Você pode entrar?)
+builder.Services.AddAuthorization();
+
+// --- FIM DO BUILDER ---
 var app = builder.Build();
 
-// Ativa o MIDDLEWARE para tratamente global de erros (ExceptionMiddleware)
+// 6. MIDDLEWARES
 app.UseMiddleware<MinhaApi.Middleware.ExceptionMiddleware>();
 
-// Ativa o Swagger para uso de documentação e testes via interface web
-app.UseSwagger();
-app.UseSwaggerUI();
+// 7. INTERFACE DA API (Novo Padrão .NET 10)
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi(); // Gera o JSON do contrato
+    app.MapScalarApiReference(); // Interface moderna em /scalar/v1
+}
 
-// REGISTRO DOS ENDPOINTS
+// 8. SEGURANÇA E ROTAS
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapAuthEndpoints();
 app.MapProdutoEndpoints();
 app.MapCategoriaEndpoints();
 app.MapDashboardEndpoints();
